@@ -869,7 +869,7 @@ if st.session_state["generated_questions"]:
             st.markdown(f"<h4 class='timer-text'>🎙️ Recording... Please speak into the microphone</h4>", unsafe_allow_html=True)
 
             ctx = webrtc_streamer(
-                key="audio_recorder",
+                key="webrtc_recorder",
                 mode="sendonly",
                 audio_processor_factory=lambda: AudioRecorder(),
                 media_stream_constraints={"audio": True, "video": False},
