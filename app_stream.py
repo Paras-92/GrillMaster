@@ -17,7 +17,6 @@ import traceback
 import av
 import soundfile as sf
 from streamlit_webrtc import WebRtcMode, webrtc_streamer
-from twilio.rest import Client  
 import logging
 import whisper
 import speech_recognition as sr
@@ -802,31 +801,6 @@ else:
         st.session_state["recording_complete"] = False
         st.rerun()
 
-def get_ice_servers():
-    """Use Twilio's TURN server because Streamlit Community Cloud has changed
-    its infrastructure and WebRTC connection cannot be established without TURN server now.  # noqa: E501
-    We considered Open Relay Project (https://www.metered.ca/tools/openrelay/) too,
-    but it is not stable and hardly works as some people reported like https://github.com/aiortc/aiortc/issues/832#issuecomment-1482420656  # noqa: E501
-    See https://github.com/whitphx/streamlit-webrtc/issues/1213
-    """
-
-    # Ref: https://www.twilio.com/docs/stun-turn/api
-    try:
-        account_sid = os.environ["TWILIO_ACCOUNT_SID"]
-        auth_token = os.environ["TWILIO_AUTH_TOKEN"]
-    except KeyError:
-        logger.warning(
-            "Twilio credentials are not set. Fallback to a free STUN server from Google."  # noqa: E501
-        )
-        return [{"urls": ["stun:stun.l.google.com:19302"]}]
-
-    client = Client(account_sid, auth_token)
-
-    token = client.tokens.create()
-
-    return token.ice_servers
-
-
 
 # === Main QA Interface ===
 if st.session_state["generated_questions"]:
@@ -864,6 +838,7 @@ if st.session_state["generated_questions"]:
             remaining = 10 - int(elapsed)
             if remaining > 0:
                 st.markdown(f"<h4 class='timer-text'>⏳ {remaining} seconds to click 'Start Recording'...</h4>", unsafe_allow_html=True)
+                st.info("🎤 Please make sure your microphone is allowed and selected in the browser. Use Chrome for best results.")
                 if st.button("🎙️ Start Recording"):
                     st.session_state.update({
                         "record_phase": "recording",
@@ -891,12 +866,14 @@ if st.session_state["generated_questions"]:
             st.markdown(f"<h4 class='timer-text'>🎙️ Recording... (Speak now and wait to auto-save)</h4>", unsafe_allow_html=True)
 
             webrtc_ctx = webrtc_streamer(
-                key=f"record_{idx}",
-                mode=WebRtcMode.SENDRECV,
-                audio_receiver_size=1024,
-                media_stream_constraints={"video": False, "audio": True},
-                async_processing=True
-            )
+            key=f"record_{idx}",
+            mode=WebRtcMode.SENDRECV,
+            audio_receiver_size=1024,
+            media_stream_constraints={"video": False, "audio": True},
+            async_processing=True,
+            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+        )
+
 
             if webrtc_ctx.state.playing:
                 if webrtc_ctx.audio_receiver:
@@ -1157,9 +1134,6 @@ if st.session_state.get("show_summary", False):
             key="download_summary_final_btn", 
             use_container_width=True
         )
-    
-    
-
     # Expander for detailed suggestions, shown if generated
     if st.session_state.get("improvement_suggestions_generated", False) and st.session_state.get("improvement_suggestions"):
         with st.expander("🔍 View Detailed Improvement Suggestions", expanded=True): # Default to expanded once generated
