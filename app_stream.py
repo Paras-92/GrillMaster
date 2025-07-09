@@ -1,7 +1,6 @@
 import os
 import re
 import time
-#from dotenv import load_dotenv
 import streamlit as st
 import PyPDF2
 import google.generativeai as genai
@@ -16,11 +15,12 @@ import tempfile
 import traceback
 import av
 import soundfile as sf
-from streamlit_webrtc import WebRtcMode, webrtc_streamer
 import logging
 import whisper
 import speech_recognition as sr
 import logging
+import streamlit as st
+from audiorecorder import audiorecorder
 #model = whisper.load_model("base")
 
 # Set up logger
@@ -39,6 +39,16 @@ def convert_frames_to_wav(frames, wav_path):
     audio = b''.join([f.to_ndarray().tobytes() for f in frames])
     with sf.SoundFile(wav_path, mode='x', samplerate=48000, channels=1, subtype='PCM_16') as f:
         f.write(audio)
+
+audio = audiorecorder("Click to record", "Recording...")
+
+if len(audio) > 0:
+    st.audio(audio.tobytes(), format="audio/wav")
+    
+    # Save to file
+    with open("output.wav", "wb") as f:
+        f.write(audio.tobytes())
+
 # Initialize session state
 for key, default in {
     "generated_questions": [],
@@ -863,65 +873,31 @@ if st.session_state["generated_questions"]:
                 st.rerun()
 
         elif st.session_state["record_phase"] == "recording":
-            st.markdown(f"<h4 class='timer-text'>🎙️ Recording... (Speak now and wait to auto-save)</h4>", unsafe_allow_html=True)
+            st.markdown(f"<h4 class='timer-text'>🎙️ Recording... (Click the button and speak)</h4>", unsafe_allow_html=True)
+            audio = audiorecorder("Click to record", "Recording...")
 
-            webrtc_ctx = webrtc_streamer(
-            key=f"record_{idx}",
-            mode=WebRtcMode.SENDRECV,
-            audio_receiver_size=1024,
-            media_stream_constraints={"video": False, "audio": True},
-            async_processing=True,
-            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-        )
+            if len(audio) > 0:
+                st.audio(audio.tobytes(), format="audio/wav")
 
+                wav_path = f"response_{idx}.wav"
+                with open(wav_path, "wb") as f:
+                    f.write(audio.tobytes())
 
-            if webrtc_ctx.state.playing:
-                if webrtc_ctx.audio_receiver:
+                recognizer = sr.Recognizer()
+                with sr.AudioFile(wav_path) as source:
+                    audio_data = recognizer.record(source)
                     try:
-                        frames = webrtc_ctx.audio_receiver.get_frames(timeout=5)
-                        wav_path = f"response_{idx}.wav"
-                        convert_frames_to_wav(frames, wav_path)
-                        st.audio(wav_path)
+                        transcript = recognizer.recognize_google(audio_data)
+                    except Exception:
+                        transcript = "[Could not transcribe]"
 
-                        recognizer = sr.Recognizer()
-                        with sr.AudioFile(wav_path) as source:
-                            audio = recognizer.record(source)
-                            transcript = recognizer.recognize_google(audio)
-
-                        st.success("✅ Transcription completed.")
-                        st.session_state["answers"].append({
-                            "question": question,
-                            "response_file": wav_path,
-                            "response": transcript
-                        })
-
-                        st.session_state.update({
-                            "record_phase": "idle",
-                            "recording_started": False,
-                            "question_played": False,
-                            "question_start_time": 0.0,
-                            "current_question_index": idx + 1
-                        })
-
-                        if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
-                            evaluate_answers()
-                            st.session_state["show_summary"] = True
-                        st.rerun()
-
-                    except Exception as e:
-                        st.error(f"🎤 Recording error or timeout: {e}")
-
-                else:
-                    st.warning("⚠️ No audio frames received yet. Please speak clearly into the mic.")
-
-            # Time-out after 15 seconds if nothing recorded
-            elapsed = time.time() - st.session_state.get("timer_start", 0)
-            if elapsed > 15:
-                st.warning("⏱️ Recording timed out. Moving to next question.")
+                st.success("✅ Transcription completed.")
                 st.session_state["answers"].append({
                     "question": question,
-                    "response": "[No response]"
+                    "response_file": wav_path,
+                    "response": transcript
                 })
+
                 st.session_state.update({
                     "record_phase": "idle",
                     "recording_started": False,
@@ -929,13 +905,11 @@ if st.session_state["generated_questions"]:
                     "question_start_time": 0.0,
                     "current_question_index": idx + 1
                 })
+
                 if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
                     evaluate_answers()
                     st.session_state["show_summary"] = True
-                st.rerun()
-
-                        
-                
+                st.rerun() 
                                 
             else:
                 st.markdown("<div style='padding:10px; background:#fff3e0; border-left:5px solid orange;'>⚠️ <strong>No response detected.</strong> Moving to next question...</div>", unsafe_allow_html=True)
@@ -1134,6 +1108,7 @@ if st.session_state.get("show_summary", False):
             key="download_summary_final_btn", 
             use_container_width=True
         )
+
     # Expander for detailed suggestions, shown if generated
     if st.session_state.get("improvement_suggestions_generated", False) and st.session_state.get("improvement_suggestions"):
         with st.expander("🔍 View Detailed Improvement Suggestions", expanded=True): # Default to expanded once generated
@@ -1147,4 +1122,3 @@ if st.session_state.get("show_summary", False):
             keys_to_fully_clear = list(st.session_state.keys())
             for key_to_del_full in keys_to_fully_clear:
                 del st.session_state[key_to_del_full]
-           
