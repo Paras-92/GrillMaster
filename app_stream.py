@@ -884,7 +884,7 @@ if st.session_state["generated_questions"]:
             ctx = webrtc_streamer(
                 key="audio_recorder",
                 mode="sendonly",
-                audio_processor_factory=AudioRecorder,
+                audio_processor_factory=lambda: AudioRecorder(),
                 media_stream_constraints={"audio": True, "video": False},
                 async_processing=False,
             )
@@ -1142,8 +1142,6 @@ if st.session_state.get("show_summary", False):
             key="download_summary_final_btn", 
             use_container_width=True
         )
-    
-    
 
     # Expander for detailed suggestions, shown if generated
     if st.session_state.get("improvement_suggestions_generated", False) and st.session_state.get("improvement_suggestions"):
