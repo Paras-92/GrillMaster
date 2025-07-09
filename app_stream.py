@@ -792,9 +792,18 @@ else:
         st.session_state["recording_complete"] = False
         st.rerun()
 
+class AudioRecorder(AudioProcessorBase):
+    def __init__(self):
+        self.frames = []
+        self.name = "AudioRecorder"  # Optional safeguard
+
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        pcm = frame.to_ndarray().flatten()
+        self.frames.append(pcm)
+        return frame
 
 # === Main QA Interface ===
-if st.session_state["generated_questions"]:
+if st.session_state.get("generated_questions"):
     idx = st.session_state["current_question_index"]
     if idx < len(st.session_state["generated_questions"]):
         question = st.session_state["generated_questions"][idx].lstrip("1234567890. ").strip()
@@ -803,7 +812,7 @@ if st.session_state["generated_questions"]:
         if not st.session_state.get("question_played"):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            st.session_state["question_audio_file"] = asyncio.run(generate_question_audio(question))
+            st.session_state["question_audio_file"] = loop.run_until_complete(generate_question_audio(question))
             st.session_state.update({
                 "question_played": True,
                 "question_start_time": time.time(),
@@ -857,19 +866,10 @@ if st.session_state["generated_questions"]:
                 st.rerun()
 
         elif st.session_state["record_phase"] == "recording":
-            class AudioRecorder(AudioProcessorBase):
-                def __init__(self):
-                    self.frames = []
-
-                def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-                    pcm = frame.to_ndarray().flatten()
-                    self.frames.append(pcm)
-                    return frame
-
             st.markdown(f"<h4 class='timer-text'>🎙️ Recording... Please speak into the microphone</h4>", unsafe_allow_html=True)
 
             ctx = webrtc_streamer(
-                key="webrtc_recorder",
+                key=f"webrtc_recorder_q{idx}",  # ✅ unique per question
                 mode="sendonly",
                 audio_processor_factory=lambda: AudioRecorder(),
                 media_stream_constraints={"audio": True, "video": False},
@@ -948,6 +948,7 @@ if st.session_state["generated_questions"]:
                     evaluate_answers()
                     st.session_state["show_summary"] = True
                 st.rerun()
+
 
 # === Summary Display ===
 if st.session_state.get("show_summary", False):
