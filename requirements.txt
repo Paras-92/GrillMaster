@@ -13,3 +13,4 @@ gtts
 edge-tts
 soundfile
 streamlit-audiorec
+streamlit-audio-recorder
