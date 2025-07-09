@@ -1,2 +1,5 @@
 portaudio19-dev
 ffmpeg
+python3.10
+python3.10-dev
+python3.10-distutils
