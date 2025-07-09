@@ -1,30 +1,24 @@
-import os
 import re
+import os
 import time
-#from dotenv import load_dotenv
+import asyncio
 import streamlit as st
 import PyPDF2
 import google.generativeai as genai
-import speech_recognition as sr
 from random import sample
 import random
-from html import escape
-import asyncio
 import edge_tts
 import pandas as pd
 import tempfile
 import traceback
 import av
 import soundfile as sf
-import logging
 import whisper
 import speech_recognition as sr
 import logging
-import streamlit as st
 from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
-import wave
 import numpy as np
-#model = whisper.load_model("base")
+import wave
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -36,16 +30,7 @@ st.set_page_config(page_title="GrillMaster", layout="wide")
 
 # Load API key
 #load_dotenv()
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-
-def convert_frames_to_wav(frames, wav_path):
-    audio = b''.join([f.to_ndarray().tobytes() for f in frames])
-    with sf.SoundFile(wav_path, mode='x', samplerate=48000, channels=1, subtype='PCM_16') as f:
-        f.write(audio)
-    
-    # Save to file
-    with open("output.wav", "wb") as f:
-        f.write(audio.tobytes())
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])    
 
 # Initialize session state
 for key, default in {
@@ -818,6 +803,8 @@ if st.session_state["generated_questions"]:
 
         # Phase 0: Play audio first and wait 5s before countdown
         if not st.session_state.get("question_played"):
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             st.session_state["question_audio_file"] = asyncio.run(generate_question_audio(question))
             st.session_state.update({
                 "question_played": True,
@@ -827,7 +814,8 @@ if st.session_state["generated_questions"]:
             })
 
         st.markdown(f"**Q{idx + 1}:** {question}")
-        st.audio(st.session_state["question_audio_file"], format="audio/mp3")
+        with open(st.session_state["question_audio_file"], "rb") as audio_file:
+            st.audio(audio_file.read(), format="audio/mp3")
 
         now = time.time()
         elapsed = now - st.session_state.get("question_start_time", 0)
@@ -955,32 +943,6 @@ if st.session_state["generated_questions"]:
                     "audio_waiting": True
                 })
 
-                if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
-                    evaluate_answers()
-                    st.session_state["show_summary"] = True
-                st.rerun()
-
-
-        elif st.session_state["record_phase"] == "listening":
-            st.success("🎧 Review your recorded response below:")
-            st.audio(st.session_state["response_file"], format="audio/wav")
-            
-            if st.button("⏹️ Confirm & Next"):
-                st.session_state["answers"].append({
-                    "question": question,
-                    "response_file": st.session_state["response_file"]
-                })
-
-                st.session_state.update({
-                    "record_phase": "idle",
-                    "recording_started": False,
-                    "question_played": False,
-                    "question_start_time": 0.0,
-                    "current_question_index": idx + 1,
-                    "response_file": None,
-                    "audio_waiting": True
-                })
-                
                 if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
                     evaluate_answers()
                     st.session_state["show_summary"] = True
@@ -1144,8 +1106,6 @@ if st.session_state.get("show_summary", False):
             use_container_width=True
         )
     
-    
-
     # Expander for detailed suggestions, shown if generated
     if st.session_state.get("improvement_suggestions_generated", False) and st.session_state.get("improvement_suggestions"):
         with st.expander("🔍 View Detailed Improvement Suggestions", expanded=True): # Default to expanded once generated
