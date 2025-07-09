@@ -19,6 +19,8 @@ import logging
 from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
 import numpy as np
 import wave
+import sys
+st.write("🐍 Python version in use:", sys.version)
 
 # Set up logger
 logger = logging.getLogger(__name__)
