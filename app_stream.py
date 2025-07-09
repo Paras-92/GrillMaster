@@ -877,11 +877,13 @@ if st.session_state.get("generated_questions"):
             st.write("⚙️ Debug: Current webrtc key in session_state:", 
          {k: type(v) for k, v in st.session_state.items() if "webrtc_recorder" in k})
             ctx = webrtc_streamer(
-                key=f"webrtc_recorder_q{idx}",  # ✅ unique per question
+                key=f"webrtc_recorder_q{idx}",
                 mode=WebRtcMode.SENDONLY,
                 audio_processor_factory=lambda: AudioRecorder(),
                 media_stream_constraints={"audio": True, "video": False},
                 async_processing=False,
+                # 👇 THIS LINE IS THE FIX
+                rtc_configuration={},
             )
 
             if ctx.audio_processor and ctx.state.playing is False and ctx.audio_processor.frames:
