@@ -29,8 +29,11 @@ logging.basicConfig(level=logging.INFO)
 st.set_page_config(page_title="GrillMaster", layout="wide")
 
 # Load API key
-#load_dotenv()
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])    
+
+for key in list(st.session_state.keys()):
+    if key.startswith("webrtc_recorder_"):
+        del st.session_state[key]
 
 # Initialize session state
 for key, default in {
@@ -867,7 +870,8 @@ if st.session_state.get("generated_questions"):
 
         elif st.session_state["record_phase"] == "recording":
             st.markdown(f"<h4 class='timer-text'>🎙️ Recording... Please speak into the microphone</h4>", unsafe_allow_html=True)
-
+            st.write("⚙️ Debug: Current webrtc key in session_state:", 
+         {k: type(v) for k, v in st.session_state.items() if "webrtc_recorder" in k})
             ctx = webrtc_streamer(
                 key=f"webrtc_recorder_q{idx}",  # ✅ unique per question
                 mode="sendonly",
