@@ -15,6 +15,4 @@ soundfile
 openpyxl
 pandas
 numpy
-av 
-pyaudio
-wave
+av
