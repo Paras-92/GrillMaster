@@ -146,7 +146,6 @@ TOTAL_ORIGINAL_WEIGHT_HR = sum(param_data["weight_original"] for param_data in H
 for param in HR_PARAMETERS_CONFIG:
     HR_PARAMETERS_CONFIG[param]["weight_normalized"] = (HR_PARAMETERS_CONFIG[param]["weight_original"] / TOTAL_ORIGINAL_WEIGHT_HR) * 100
 
-
 ########################################///////////////////////////////////////////////////#########################################
 # SUmmary of improvement(function)
 
@@ -767,7 +766,6 @@ else:
                 input_text = selected_skill
                 st.sidebar.markdown(f"✅ Selected Skill: **{selected_skill}**")
 
-
     if st.sidebar.button("Generate Questions"):
         if not input_text.strip():
             st.warning("⚠️ Please provide input based on the selected method.")
@@ -899,7 +897,9 @@ if st.session_state["generated_questions"]:
                     except Exception:
                         transcript = "[Could not transcribe]"
 
-                st.audio(wav_path, format="audio/wav")
+                with open(wav_path, "rb") as f:
+                    st.audio(f.read(), format="audio/wav")
+
                 st.markdown(f"**Transcript:** {transcript}")
 
                 # Save answer
@@ -925,7 +925,8 @@ if st.session_state["generated_questions"]:
 
         elif st.session_state["record_phase"] == "listening":
             st.success("🎧 Review your recorded response below:")
-            st.audio(st.session_state["response_file"], format="audio/wav")
+            with open(st.session_state["response_file"], "rb") as f:
+                st.audio(f.read(), format="audio/wav")
 
             if st.button("⏹️ Confirm & Next"):
                 st.session_state["answers"].append({
