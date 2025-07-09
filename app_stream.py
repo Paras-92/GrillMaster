@@ -1,6 +1,7 @@
 import os
 import re
 import time
+#from dotenv import load_dotenv
 import streamlit as st
 import PyPDF2
 import google.generativeai as genai
@@ -39,11 +40,6 @@ def convert_frames_to_wav(frames, wav_path):
     audio = b''.join([f.to_ndarray().tobytes() for f in frames])
     with sf.SoundFile(wav_path, mode='x', samplerate=48000, channels=1, subtype='PCM_16') as f:
         f.write(audio)
-
-audio = audiorecorder("Click to record", "Recording...")
-
-if len(audio) > 0:
-    st.audio(audio.tobytes(), format="audio/wav")
     
     # Save to file
     with open("output.wav", "wb") as f:
@@ -848,7 +844,7 @@ if st.session_state["generated_questions"]:
             remaining = 10 - int(elapsed)
             if remaining > 0:
                 st.markdown(f"<h4 class='timer-text'>⏳ {remaining} seconds to click 'Start Recording'...</h4>", unsafe_allow_html=True)
-                st.info("🎤 Please make sure your microphone is allowed and selected in the browser. Use Chrome for best results.")
+                st.info("🎤 Please allow microphone access in your browser (usually appears at top of window).")
                 if st.button("🎙️ Start Recording"):
                     st.session_state.update({
                         "record_phase": "recording",
@@ -876,6 +872,12 @@ if st.session_state["generated_questions"]:
             st.markdown(f"<h4 class='timer-text'>🎙️ Recording... (Click the button and speak)</h4>", unsafe_allow_html=True)
             audio = audiorecorder("Click to record", "Recording...")
 
+            # Allow mic access time
+            if "recording_attempt_start_time" not in st.session_state:
+                st.session_state["recording_attempt_start_time"] = time.time()
+
+            elapsed_since_start = time.time() - st.session_state["recording_attempt_start_time"]
+
             if len(audio) > 0:
                 st.audio(audio.tobytes(), format="audio/wav")
 
@@ -898,33 +900,67 @@ if st.session_state["generated_questions"]:
                     "response": transcript
                 })
 
+                # Reset state
                 st.session_state.update({
                     "record_phase": "idle",
                     "recording_started": False,
                     "question_played": False,
                     "question_start_time": 0.0,
+                    "recording_attempt_start_time": None,
                     "current_question_index": idx + 1
                 })
 
                 if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
                     evaluate_answers()
                     st.session_state["show_summary"] = True
-                st.rerun() 
-                                
+                st.rerun()
+
+            elif elapsed_since_start < 8:
+                st.info("⏳ Waiting for microphone permission... Please allow access in browser.")
+                time.sleep(1)
+                st.rerun()
             else:
-                st.markdown("<div style='padding:10px; background:#fff3e0; border-left:5px solid orange;'>⚠️ <strong>No response detected.</strong> Moving to next question...</div>", unsafe_allow_html=True)
+                st.warning("⚠️ No response detected. Moving to next question.")
                 st.session_state["answers"].append({"question": question, "response": "[No response]"})
                 st.session_state.update({
                     "record_phase": "idle",
                     "recording_started": False,
                     "question_played": False,
                     "question_start_time": 0.0,
+                    "recording_attempt_start_time": None,
                     "current_question_index": idx + 1
                 })
+
                 if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
                     evaluate_answers()
                     st.session_state["show_summary"] = True
                 st.rerun()
+
+        elif st.session_state["record_phase"] == "listening":
+            st.success("🎧 Review your recorded response below:")
+            st.audio(st.session_state["response_file"], format="audio/wav")
+
+            if st.button("⏹️ Confirm & Next"):
+                st.session_state["answers"].append({
+                    "question": question,
+                    "response_file": st.session_state["response_file"]
+                })
+
+                st.session_state.update({
+                    "record_phase": "idle",
+                    "recording_started": False,
+                    "question_played": False,
+                    "question_start_time": 0.0,
+                    "current_question_index": idx + 1,
+                    "response_file": None,
+                    "audio_waiting": True
+                })
+
+                if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
+                    evaluate_answers()
+                    st.session_state["show_summary"] = True
+                st.rerun()
+
 
         elif st.session_state["record_phase"] == "listening":
             st.success("🎧 Review your recorded response below:")
@@ -1108,6 +1144,8 @@ if st.session_state.get("show_summary", False):
             key="download_summary_final_btn", 
             use_container_width=True
         )
+    
+    
 
     # Expander for detailed suggestions, shown if generated
     if st.session_state.get("improvement_suggestions_generated", False) and st.session_state.get("improvement_suggestions"):
