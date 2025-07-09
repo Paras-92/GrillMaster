@@ -1,7 +1,6 @@
 import os
 import re
 import time
-#from dotenv import load_dotenv
 import streamlit as st
 import PyPDF2
 import google.generativeai as genai
