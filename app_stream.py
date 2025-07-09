@@ -1,6 +1,7 @@
 import os
 import re
 import time
+#from dotenv import load_dotenv
 import streamlit as st
 import PyPDF2
 import google.generativeai as genai
@@ -1142,6 +1143,8 @@ if st.session_state.get("show_summary", False):
             key="download_summary_final_btn", 
             use_container_width=True
         )
+    
+    
 
     # Expander for detailed suggestions, shown if generated
     if st.session_state.get("improvement_suggestions_generated", False) and st.session_state.get("improvement_suggestions"):
