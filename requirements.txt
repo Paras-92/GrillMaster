@@ -1,4 +1,5 @@
 streamlit
+streamlit-webrtc
 google-generativeai
 python-dotenv
 Pillow
@@ -6,11 +7,10 @@ PyPDF2
 gTTS
 charset-normalizer
 pyttsx3
-speechrecognition
+SpeechRecognition
 pyaudio
 fpdf
-gtts
 edge-tts
 soundfile
-streamlit-audiorec
-streamlit-audio-recorder
+openpyxl
+pandas
