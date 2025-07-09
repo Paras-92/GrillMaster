@@ -21,7 +21,9 @@ import whisper
 import speech_recognition as sr
 import logging
 import streamlit as st
-from audiorecorder import audiorecorder
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+import wave
+import numpy as np
 #model = whisper.load_model("base")
 
 # Set up logger
@@ -869,31 +871,50 @@ if st.session_state["generated_questions"]:
                 st.rerun()
 
         elif st.session_state["record_phase"] == "recording":
-            st.markdown(f"<h4 class='timer-text'>🎙️ Recording... (Click the button and speak)</h4>", unsafe_allow_html=True)
-            audio = audiorecorder("Click to record", "Recording...")
+            class AudioRecorder(AudioProcessorBase):
+                def __init__(self):
+                    self.frames = []
 
-            # Allow mic access time
-            if "recording_attempt_start_time" not in st.session_state:
-                st.session_state["recording_attempt_start_time"] = time.time()
+                def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+                    pcm = frame.to_ndarray().flatten()
+                    self.frames.append(pcm)
+                    return frame
 
-            elapsed_since_start = time.time() - st.session_state["recording_attempt_start_time"]
+            st.markdown(f"<h4 class='timer-text'>🎙️ Recording... Please speak into the microphone</h4>", unsafe_allow_html=True)
 
-            if len(audio) > 0:
-                st.audio(audio.tobytes(), format="audio/wav")
+            ctx = webrtc_streamer(
+                key="audio_recorder",
+                mode="sendonly",
+                audio_processor_factory=AudioRecorder,
+                media_stream_constraints={"audio": True, "video": False},
+                async_processing=False,
+            )
 
+            if ctx.audio_processor and ctx.state.playing is False and ctx.audio_processor.frames:
+                st.success("✅ Recording finished. Processing your response...")
+
+                # Save audio to .wav
+                audio_data = np.concatenate(ctx.audio_processor.frames).astype(np.int16)
                 wav_path = f"response_{idx}.wav"
-                with open(wav_path, "wb") as f:
-                    f.write(audio.tobytes())
+                with wave.open(wav_path, "wb") as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)  # 16-bit audio
+                    wf.setframerate(48000)
+                    wf.writeframes(audio_data.tobytes())
 
+                # Transcription
                 recognizer = sr.Recognizer()
                 with sr.AudioFile(wav_path) as source:
-                    audio_data = recognizer.record(source)
+                    audio = recognizer.record(source)
                     try:
-                        transcript = recognizer.recognize_google(audio_data)
+                        transcript = recognizer.recognize_google(audio)
                     except Exception:
                         transcript = "[Could not transcribe]"
 
-                st.success("✅ Transcription completed.")
+                st.audio(wav_path, format="audio/wav")
+                st.markdown(f"**Transcript:** {transcript}")
+
+                # Save answer
                 st.session_state["answers"].append({
                     "question": question,
                     "response_file": wav_path,
@@ -906,28 +927,6 @@ if st.session_state["generated_questions"]:
                     "recording_started": False,
                     "question_played": False,
                     "question_start_time": 0.0,
-                    "recording_attempt_start_time": None,
-                    "current_question_index": idx + 1
-                })
-
-                if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
-                    evaluate_answers()
-                    st.session_state["show_summary"] = True
-                st.rerun()
-
-            elif elapsed_since_start < 8:
-                st.info("⏳ Waiting for microphone permission... Please allow access in browser.")
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.warning("⚠️ No response detected. Moving to next question.")
-                st.session_state["answers"].append({"question": question, "response": "[No response]"})
-                st.session_state.update({
-                    "record_phase": "idle",
-                    "recording_started": False,
-                    "question_played": False,
-                    "question_start_time": 0.0,
-                    "recording_attempt_start_time": None,
                     "current_question_index": idx + 1
                 })
 
