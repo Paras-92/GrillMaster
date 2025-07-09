@@ -19,6 +19,8 @@ import logging
 from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
 import numpy as np
 import wave
+from streamlit_webrtc import WebRtcMode
+
 import sys
 st.write("🐍 Python version in use:", sys.version)
 
@@ -876,7 +878,7 @@ if st.session_state.get("generated_questions"):
          {k: type(v) for k, v in st.session_state.items() if "webrtc_recorder" in k})
             ctx = webrtc_streamer(
                 key=f"webrtc_recorder_q{idx}",  # ✅ unique per question
-                mode="sendonly",
+                mode=WebRtcMode.SENDONLY,
                 audio_processor_factory=lambda: AudioRecorder(),
                 media_stream_constraints={"audio": True, "video": False},
                 async_processing=False,
