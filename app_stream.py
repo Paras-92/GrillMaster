@@ -845,7 +845,7 @@ if st.session_state.get("generated_questions"):
                         "timer_start": time.time(),
                         "recording_started": False
                     })
-                    st.experimental_rerun()
+                    st.rerun()
                 time.sleep(1)
                 st.rerun()
             else:
