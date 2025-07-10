@@ -844,7 +844,7 @@ if st.session_state.get("generated_questions"):
                 st.rerun()
             else:
                 st.session_state["record_phase"] = "waiting_to_start"
-                st.session_state["question_start_time"] = time.time()
+                time.sleep(1)
                 st.rerun()
 
         elif st.session_state["record_phase"] == "waiting_to_start":
@@ -881,7 +881,7 @@ if st.session_state.get("generated_questions"):
 
         elif st.session_state.get("record_phase") == "recording":
             st.markdown(f"<h4 class='timer-text'>🎙️ Recording... Please speak into the microphone</h4>", unsafe_allow_html=True)
-            st.info("🔴 Listening...")
+            st.markdown("🔴 Listening... Speak now.")
             idx = st.session_state.get("current_question_index", 0)
             audio = mic_recorder(start_prompt=None, stop_prompt=None, just_once=True, key=f"mic_rec_{idx}")
 
@@ -917,6 +917,10 @@ if st.session_state.get("generated_questions"):
                 })
                 st.success(f"📝 Transcribed Response: {transcript}")
                 st.session_state["current_question_index"] += 1
+                st.session_state["question_played"] = False
+                st.session_state["record_phase"] = ""
+                st.session_state["question_audio_file"] = ""
+
                 if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
                     evaluate_answers()
                     st.session_state["show_summary"] = True
