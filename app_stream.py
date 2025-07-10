@@ -811,7 +811,7 @@ class AudioRecorder(AudioProcessorBase):
         pcm = frame.to_ndarray().flatten()
         self.frames.append(pcm)
         return frame
-
+    
 # === Main QA Interface ===
 if st.session_state.get("generated_questions"):
     idx = st.session_state["current_question_index"]
@@ -877,30 +877,22 @@ if st.session_state.get("generated_questions"):
 
         elif st.session_state["record_phase"] == "recording":
             st.markdown(f"<h4 class='timer-text'>🎙️ Recording... Please speak into the microphone</h4>", unsafe_allow_html=True)
-            st.write("⚙️ Debug: Current webrtc key in session_state:", 
-         {k: type(v) for k, v in st.session_state.items() if "webrtc_recorder" in k})
-
             audio = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="⏹️ Stop", just_once=True, key=f"mic_rec_{idx}")
 
-            if audio:
+            if audio is not None and len(audio) > 0:
                 wav_path = f"response_{idx}.wav"
-
-                # ✅ Proper save
                 raw_bytes = audio["bytes"]
 
-                # If empty or invalid, stop
-                if not raw_bytes or len(raw_bytes) < 2:
+                if len(raw_bytes) < 2:
                     st.warning("⚠️ No audio data captured or audio is too short.")
                     st.stop()
 
-                # Pad with zero if needed to make it even length
                 if len(raw_bytes) % 2 != 0:
                     raw_bytes += b'\x00'
 
                 np_audio = np.frombuffer(raw_bytes, dtype=np.int16).reshape(-1, 1)
                 sf.write(wav_path, np_audio, samplerate=48000, subtype="PCM_16")
 
-                # ✅ Transcribe
                 recognizer = sr.Recognizer()
                 with sr.AudioFile(wav_path) as source:
                     audio_data = recognizer.record(source)
@@ -909,52 +901,23 @@ if st.session_state.get("generated_questions"):
                     except Exception:
                         transcript = "[Could not transcribe]"
 
-                st.audio(wav_path, format="audio/wav")
-                st.markdown(f"**Transcript:** {transcript}")
+                with open(wav_path, "rb") as audio_file:
+                    st.audio(audio_file.read(), format="audio/wav")
 
                 st.session_state["answers"].append({
                     "question": question,
                     "response_file": wav_path,
                     "response": transcript
                 })
-
-                # Move to next question
-                st.session_state.update({
-                    "record_phase": "idle",
-                    "question_played": False,
-                    "current_question_index": idx + 1
-                })
+                st.session_state["current_question_index"] += 1
                 st.rerun()
 
-
-            # The following block was removed because 'ctx' is not defined and is not needed for mic_recorder-based recording.
-
-        elif st.session_state["record_phase"] == "listening":
-            st.success("🎧 Review your recorded response below:")
-            with open(st.session_state["response_file"], "rb") as f:
-                st.audio(f.read(), format="audio/wav")
-
-            if st.button("⏹️ Confirm & Next"):
-                st.session_state["answers"].append({
-                    "question": question,
-                    "response_file": st.session_state["response_file"]
-                })
-
-                st.session_state.update({
-                    "record_phase": "idle",
-                    "recording_started": False,
-                    "question_played": False,
-                    "question_start_time": 0.0,
-                    "current_question_index": idx + 1,
-                    "response_file": None,
-                    "audio_waiting": True
-                })
-
-                if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
-                    evaluate_answers()
-                    st.session_state["show_summary"] = True
-                st.rerun()
-
+else:
+    st.success("✅ Interview complete!")
+    st.write("### Summary:")
+    for i, ans in enumerate(st.session_state["answers"]):
+        st.markdown(f"**Q{i+1}:** {ans['question']}")
+        st.markdown(f"**Your Response:** {ans['response']}")
 
 # === Summary Display ===
 if st.session_state.get("show_summary", False):
