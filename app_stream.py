@@ -11,15 +11,12 @@ import edge_tts
 import pandas as pd
 import tempfile
 import traceback
-import av
 import soundfile as sf
 import whisper
 import speech_recognition as sr
 import logging
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
 import numpy as np
 import wave
-from streamlit_webrtc import WebRtcMode
 import whisper
 from streamlit_mic_recorder import mic_recorder
 import soundfile as sf
@@ -802,16 +799,6 @@ else:
         st.session_state["recording_complete"] = False
         st.rerun()
 
-class AudioRecorder(AudioProcessorBase):
-    def __init__(self):
-        self.frames = []
-        self.name = "AudioRecorder"  # Optional safeguard
-
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        pcm = frame.to_ndarray().flatten()
-        self.frames.append(pcm)
-        return frame
-    
 # === Main QA Interface ===
 if st.session_state.get("generated_questions"):
     idx = st.session_state.get("current_question_index", 0)
