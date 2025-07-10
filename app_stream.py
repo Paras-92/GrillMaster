@@ -20,6 +20,8 @@ from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
 import numpy as np
 import wave
 from streamlit_webrtc import WebRtcMode
+import whisper
+from streamlit_mic_recorder import mic_recorder
 
 import sys
 st.write("🐍 Python version in use:", sys.version)
@@ -876,62 +878,43 @@ if st.session_state.get("generated_questions"):
             st.markdown(f"<h4 class='timer-text'>🎙️ Recording... Please speak into the microphone</h4>", unsafe_allow_html=True)
             st.write("⚙️ Debug: Current webrtc key in session_state:", 
          {k: type(v) for k, v in st.session_state.items() if "webrtc_recorder" in k})
-            ctx = webrtc_streamer(
-                key=f"webrtc_recorder_q{idx}",
-                mode=WebRtcMode.SENDONLY,
-                audio_processor_factory=lambda: AudioRecorder(),
-                media_stream_constraints={"audio": True, "video": False},
-                async_processing=False,
-                # 👇 THIS LINE IS THE FIX
-                rtc_configuration={},
-            )
 
-            if ctx.audio_processor and ctx.state.playing is False and ctx.audio_processor.frames:
-                st.success("✅ Recording finished. Processing your response...")
+            audio = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="⏹️ Stop", just_once=True, key=f"mic_rec_{idx}")
 
-                # Save audio to .wav
-                audio_data = np.concatenate(ctx.audio_processor.frames).astype(np.int16)
+            if audio:
+                # Save the audio
                 wav_path = f"response_{idx}.wav"
-                with wave.open(wav_path, "wb") as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(2)  # 16-bit audio
-                    wf.setframerate(48000)
-                    wf.writeframes(audio_data.tobytes())
+                with open(wav_path, "wb") as f:
+                    f.write(audio["bytes"])
 
-                # Transcription
+                # Transcribe
                 recognizer = sr.Recognizer()
                 with sr.AudioFile(wav_path) as source:
-                    audio = recognizer.record(source)
+                    audio_data = recognizer.record(source)
                     try:
-                        transcript = recognizer.recognize_google(audio)
+                        transcript = recognizer.recognize_google(audio_data)
                     except Exception:
                         transcript = "[Could not transcribe]"
 
-                with open(wav_path, "rb") as f:
-                    st.audio(f.read(), format="audio/wav")
-
+                st.audio(wav_path, format="audio/wav")
                 st.markdown(f"**Transcript:** {transcript}")
 
-                # Save answer
                 st.session_state["answers"].append({
                     "question": question,
                     "response_file": wav_path,
                     "response": transcript
                 })
 
-                # Reset state
+                # Move to next question
                 st.session_state.update({
                     "record_phase": "idle",
-                    "recording_started": False,
                     "question_played": False,
-                    "question_start_time": 0.0,
                     "current_question_index": idx + 1
                 })
-
-                if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
-                    evaluate_answers()
-                    st.session_state["show_summary"] = True
                 st.rerun()
+
+
+            # The following block was removed because 'ctx' is not defined and is not needed for mic_recorder-based recording.
 
         elif st.session_state["record_phase"] == "listening":
             st.success("🎧 Review your recorded response below:")
