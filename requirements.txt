@@ -15,3 +15,5 @@ openpyxl
 pandas
 numpy
 openai-whisper
+soundfile
+numpy
