@@ -22,6 +22,7 @@ import wave
 from streamlit_webrtc import WebRtcMode
 import whisper
 from streamlit_mic_recorder import mic_recorder
+import soundfile as sf
 
 import sys
 st.write("🐍 Python version in use:", sys.version)
@@ -882,12 +883,13 @@ if st.session_state.get("generated_questions"):
             audio = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="⏹️ Stop", just_once=True, key=f"mic_rec_{idx}")
 
             if audio:
-                # Save the audio
                 wav_path = f"response_{idx}.wav"
-                with open(wav_path, "wb") as f:
-                    f.write(audio["bytes"])
 
-                # Transcribe
+                # ✅ Proper save
+                np_audio = np.frombuffer(audio["bytes"], dtype=np.int16).reshape(-1, 1)
+                sf.write(wav_path, np_audio, samplerate=48000, subtype="PCM_16")
+
+                # ✅ Transcribe
                 recognizer = sr.Recognizer()
                 with sr.AudioFile(wav_path) as source:
                     audio_data = recognizer.record(source)
