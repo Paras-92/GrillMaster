@@ -17,3 +17,4 @@ numpy
 openai-whisper
 soundfile
 numpy
+av==10.0.0
