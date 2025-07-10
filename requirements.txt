@@ -16,3 +16,4 @@ openpyxl
 pandas
 numpy
 av
+openai-whisper
