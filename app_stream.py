@@ -886,7 +886,18 @@ if st.session_state.get("generated_questions"):
                 wav_path = f"response_{idx}.wav"
 
                 # ✅ Proper save
-                np_audio = np.frombuffer(audio["bytes"], dtype=np.int16).reshape(-1, 1)
+                raw_bytes = audio["bytes"]
+
+                # If empty or invalid, stop
+                if not raw_bytes or len(raw_bytes) < 2:
+                    st.warning("⚠️ No audio data captured or audio is too short.")
+                    st.stop()
+
+                # Pad with zero if needed to make it even length
+                if len(raw_bytes) % 2 != 0:
+                    raw_bytes += b'\x00'
+
+                np_audio = np.frombuffer(raw_bytes, dtype=np.int16).reshape(-1, 1)
                 sf.write(wav_path, np_audio, samplerate=48000, subtype="PCM_16")
 
                 # ✅ Transcribe
