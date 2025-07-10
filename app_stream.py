@@ -855,7 +855,7 @@ if st.session_state.get("generated_questions"):
                 st.write("🎧 Still playing audio. Elapsed:", now - st.session_state["question_start_time"])
                 st.markdown("<h4 class='timer-text'>🔊 Playing question audio... Please listen</h4>", unsafe_allow_html=True)
                 time.sleep(1)
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.session_state.update({
                     "record_phase": "waiting_to_start",
