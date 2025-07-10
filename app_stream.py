@@ -814,7 +814,7 @@ class AudioRecorder(AudioProcessorBase):
     
 # === Main QA Interface ===
 if st.session_state.get("generated_questions"):
-    idx = st.session_state["current_question_index"]
+    idx = st.session_state.get("current_question_index", 0)
     if idx < len(st.session_state["generated_questions"]):
         question = st.session_state["generated_questions"][idx].lstrip("1234567890. ").strip()
 
@@ -852,35 +852,41 @@ if st.session_state.get("generated_questions"):
             if remaining > 0:
                 st.markdown(f"<h4 class='timer-text'>⏳ {remaining} seconds to click 'Start Recording'...</h4>", unsafe_allow_html=True)
                 st.info("🎤 Please allow microphone access in your browser (usually appears at top of window).")
-                if st.button("🎙️ Start Recording"):
+                if st.button("🎙️ Start Recording", key=f"start_record_btn_{idx}"):
                     st.session_state.update({
                         "record_phase": "recording",
                         "timer_start": time.time(),
                         "recording_started": False
                     })
-                    st.rerun()
+                    st.experimental_rerun()
                 time.sleep(1)
                 st.rerun()
             else:
                 st.markdown("<div style='padding:10px; background:#fff8e1; border-left:5px solid orange;color: #212529;'>⚠️ <strong>No action detected.</strong> Automatically skipping to next question...</div>", unsafe_allow_html=True)
-                st.session_state["answers"].append({"question": question, "response": "[No response]"})
+                if "answers" not in st.session_state:
+                    st.session_state["answers"] = []
+                current_idx = st.session_state.get("current_question_index", 0)
+                current_question = st.session_state["generated_questions"][current_idx]
+                st.session_state["answers"].append({"question": current_question, "response": "[No response]"})
                 st.session_state.update({
-                    "record_phase": "idle",
-                    "question_played": False,
-                    "question_start_time": 0.0,
-                    "current_question_index": idx + 1
-                })
+                        "record_phase": "idle",
+                        "question_played": False,
+                        "question_start_time": 0.0,
+                        "current_question_index": current_idx + 1
+                    })
                 if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
                     evaluate_answers()
                     st.session_state["show_summary"] = True
                 st.rerun()
 
-        elif st.session_state["record_phase"] == "recording":
+        elif st.session_state.get("record_phase") == "recording":
             st.markdown(f"<h4 class='timer-text'>🎙️ Recording... Please speak into the microphone</h4>", unsafe_allow_html=True)
-            audio = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="⏹️ Stop", just_once=True, key=f"mic_rec_{idx}")
+            st.info("🔴 Listening...")
+            idx = st.session_state.get("current_question_index", 0)
+            audio = mic_recorder(start_prompt=None, stop_prompt=None, just_once=True, key=f"mic_rec_{idx}")
 
             if audio is not None and len(audio) > 0:
-                wav_path = f"response_{idx}.wav"
+                wav_path = f"response_{st.session_state.get('current_question_index', 0)}.wav"
                 raw_bytes = audio["bytes"]
 
                 if len(raw_bytes) < 2:
@@ -909,15 +915,12 @@ if st.session_state.get("generated_questions"):
                     "response_file": wav_path,
                     "response": transcript
                 })
+                st.success(f"📝 Transcribed Response: {transcript}")
                 st.session_state["current_question_index"] += 1
+                if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
+                    evaluate_answers()
+                    st.session_state["show_summary"] = True
                 st.rerun()
-
-else:
-    st.success("✅ Interview complete!")
-    st.write("### Summary:")
-    for i, ans in enumerate(st.session_state["answers"]):
-        st.markdown(f"**Q{i+1}:** {ans['question']}")
-        st.markdown(f"**Your Response:** {ans['response']}")
 
 # === Summary Display ===
 if st.session_state.get("show_summary", False):
