@@ -834,129 +834,130 @@ if st.session_state.get("generated_questions"):
                 time.sleep(1)
                 st.rerun()
 
-       elif st.session_state["record_phase"] == "waiting_to_start":
-            if "wait_timer_start" not in st.session_state:
-                st.session_state["wait_timer_start"] = time.time()
-                st.rerun()
-        
-            elapsed = time.time() - st.session_state["wait_timer_start"]
-            remaining = 10 - int(elapsed)
-            if remaining > 0:
-                st.markdown(f"<h4 class='timer-text'>⏳ {remaining} seconds to click 'Start Recording'...</h4>", unsafe_allow_html=True)
-                st.info("🎤 Please allow microphone access in your browser (usually appears at top of window).")
-                if st.button("🎙️ Start Recording", key=f"start_record_btn_{idx}"):
-                    st.session_state.update({
-                        "record_phase": "recording",
-                        "timer_start": time.time(),
-                        "recording_started": False
-                    })
-                    st.rerun()
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.markdown("<div style='padding:10px; background:#fff8e1; border-left:5px solid orange;color: #212529;'>⚠️ <strong>No action detected.</strong> Automatically skipping to next question...</div>", unsafe_allow_html=True)
-                if "answers" not in st.session_state:
-                    st.session_state["answers"] = []
-                current_idx = st.session_state.get("current_question_index", 0)
-                current_question = st.session_state["generated_questions"][current_idx]
-                st.session_state["answers"].append({"question": current_question, "response": "[No response]"})
+    elif st.session_state["record_phase"] == "waiting_to_start":
+        if "wait_timer_start" not in st.session_state:
+            st.session_state["wait_timer_start"] = time.time()
+            st.rerun()
+    
+        elapsed = time.time() - st.session_state["wait_timer_start"]
+        remaining = 10 - int(elapsed)
+        if remaining > 0:
+            st.markdown(f"<h4 class='timer-text'>⏳ {remaining} seconds to click 'Start Recording'...</h4>", unsafe_allow_html=True)
+            st.info("🎤 Please allow microphone access in your browser (usually appears at top of window).")
+            if st.button("🎙️ Start Recording", key=f"start_record_btn_{idx}"):
                 st.session_state.update({
-                        "record_phase": "idle",
-                        "question_played": False,
-                        "question_start_time": 0.0,
-                        "current_question_index": current_idx + 1
-                    })
+                    "record_phase": "recording",
+                    "timer_start": time.time(),
+                    "recording_started": False
+                })
+                st.rerun()
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.markdown("<div style='padding:10px; background:#fff8e1; border-left:5px solid orange;color: #212529;'>⚠️ <strong>No action detected.</strong> Automatically skipping to next question...</div>", unsafe_allow_html=True)
+            if "answers" not in st.session_state:
+                st.session_state["answers"] = []
+            current_idx = st.session_state.get("current_question_index", 0)
+            current_question = st.session_state["generated_questions"][current_idx]
+            st.session_state["answers"].append({"question": current_question, "response": "[No response]"})
+            st.session_state.update({
+                    "record_phase": "idle",
+                    "question_played": False,
+                    "question_start_time": 0.0,
+                    "current_question_index": current_idx + 1
+                })
+            if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
+                evaluate_answers()
+                st.session_state["show_summary"] = True
+            st.rerun()
+
+    elif st.session_state["record_phase"] == "recording":
+        if "recording_timer_start" not in st.session_state:
+            st.session_state["recording_timer_start"] = time.time()
+            st.session_state["recording_detected"] = False
+            st.rerun()
+    
+        elapsed_rec = time.time() - st.session_state["recording_timer_start"]
+        remaining_rec = 15 - int(elapsed_rec)
+    
+        st.markdown(f"<h4 class='timer-text'>🎙️ Speak now... Time left: {remaining_rec}s</h4>", unsafe_allow_html=True)
+        st.info("🔴 Listening...")
+    
+        idx = st.session_state.get("current_question_index", 0)
+        question = st.session_state["generated_questions"][idx]
+        audio = mic_recorder(start_prompt=None, stop_prompt=None, just_once=True, key=f"mic_rec_{idx}")
+    
+        if audio and len(audio["bytes"]) > 0:
+            st.session_state["recording_detected"] = True
+            st.session_state["audio_data"] = audio["bytes"]
+    
+        if st.session_state.get("recording_detected"):
+            if st.button("⏹️ Stop Recording", key=f"stop_record_{idx}"):
+                wav_path = f"response_{idx}.wav"
+                raw_bytes = st.session_state["audio_data"]
+    
+                if len(raw_bytes) < 2:
+                    st.warning("⚠️ No audio data captured or audio is too short.")
+                    st.stop()
+    
+                if len(raw_bytes) % 2 != 0:
+                    raw_bytes += b'\x00'
+    
+                np_audio = np.frombuffer(raw_bytes, dtype=np.int16).reshape(-1, 1)
+                sf.write(wav_path, np_audio, samplerate=48000, subtype="PCM_16")
+    
+                recognizer = sr.Recognizer()
+                with sr.AudioFile(wav_path) as source:
+                    audio_data = recognizer.record(source)
+                    try:
+                        transcript = recognizer.recognize_google(audio_data)
+                    except Exception:
+                        transcript = "[Could not transcribe]"
+    
+                with open(wav_path, "rb") as audio_file:
+                    st.audio(audio_file.read(), format="audio/wav")
+    
+                st.session_state["answers"].append({
+                    "question": question,
+                    "response_file": wav_path,
+                    "response": transcript
+                })
+    
+                st.session_state["current_question_index"] += 1
+                st.session_state.update({
+                    "record_phase": "idle",
+                    "recording_timer_start": None,
+                    "wait_timer_start": None,
+                    "recording_detected": False,
+                    "question_played": False,
+                    "question_audio_file": ""
+                })
+    
                 if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
                     evaluate_answers()
                     st.session_state["show_summary"] = True
+    
                 st.rerun()
 
-        elif st.session_state["record_phase"] == "recording":
-            if "recording_timer_start" not in st.session_state:
-                st.session_state["recording_timer_start"] = time.time()
-                st.session_state["recording_detected"] = False
-                st.rerun()
-        
-            elapsed_rec = time.time() - st.session_state["recording_timer_start"]
-            remaining_rec = 15 - int(elapsed_rec)
-        
-            st.markdown(f"<h4 class='timer-text'>🎙️ Speak now... Time left: {remaining_rec}s</h4>", unsafe_allow_html=True)
-            st.info("🔴 Listening...")
-        
-            idx = st.session_state.get("current_question_index", 0)
-            question = st.session_state["generated_questions"][idx]
-            audio = mic_recorder(start_prompt=None, stop_prompt=None, just_once=True, key=f"mic_rec_{idx}")
-        
-            if audio and len(audio["bytes"]) > 0:
-                st.session_state["recording_detected"] = True
-                st.session_state["audio_data"] = audio["bytes"]
-        
-            if st.session_state.get("recording_detected"):
-                if st.button("⏹️ Stop Recording", key=f"stop_record_{idx}"):
-                    wav_path = f"response_{idx}.wav"
-                    raw_bytes = st.session_state["audio_data"]
-        
-                    if len(raw_bytes) < 2:
-                        st.warning("⚠️ No audio data captured or audio is too short.")
-                        st.stop()
-        
-                    if len(raw_bytes) % 2 != 0:
-                        raw_bytes += b'\x00'
-        
-                    np_audio = np.frombuffer(raw_bytes, dtype=np.int16).reshape(-1, 1)
-                    sf.write(wav_path, np_audio, samplerate=48000, subtype="PCM_16")
-        
-                    recognizer = sr.Recognizer()
-                    with sr.AudioFile(wav_path) as source:
-                        audio_data = recognizer.record(source)
-                        try:
-                            transcript = recognizer.recognize_google(audio_data)
-                        except Exception:
-                            transcript = "[Could not transcribe]"
-        
-                    with open(wav_path, "rb") as audio_file:
-                        st.audio(audio_file.read(), format="audio/wav")
-        
-                    st.session_state["answers"].append({
-                        "question": question,
-                        "response_file": wav_path,
-                        "response": transcript
-                    })
-        
-                    st.session_state["current_question_index"] += 1
-                    st.session_state.update({
-                        "record_phase": "idle",
-                        "recording_timer_start": None,
-                        "wait_timer_start": None,
-                        "recording_detected": False,
-                        "question_played": False,
-                        "question_audio_file": ""
-                    })
-        
-                    if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
-                        evaluate_answers()
-                        st.session_state["show_summary"] = True
-        
-                    st.rerun()
+        # Handle timeout if no speech detected within 15 seconds
+        if elapsed_rec > 15:
+            st.warning("🕒 No speech detected within 15 seconds. Moving to next question.")
+            st.session_state["answers"].append({"question": question, "response": "[No speech detected in recording phase]"})
+            st.session_state["current_question_index"] += 1
+            st.session_state.update({
+                "record_phase": "idle",
+                "recording_timer_start": None,
+                "wait_timer_start": None,
+                "recording_detected": False,
+                "question_played": False,
+                "question_audio_file": ""
+            })
 
-    elif elapsed_rec > 15:
-        st.warning("🕒 No speech detected within 15 seconds. Moving to next question.")
-        st.session_state["answers"].append({"question": question, "response": "[No speech detected in recording phase]"})
-        st.session_state["current_question_index"] += 1
-        st.session_state.update({
-            "record_phase": "idle",
-            "recording_timer_start": None,
-            "wait_timer_start": None,
-            "recording_detected": False,
-            "question_played": False,
-            "question_audio_file": ""
-        })
+            if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
+                evaluate_answers()
+                st.session_state["show_summary"] = True
 
-        if st.session_state["current_question_index"] == len(st.session_state["generated_questions"]):
-            evaluate_answers()
-            st.session_state["show_summary"] = True
-
-        st.rerun()
+            st.rerun()
 
 
 # === Summary Display ===
