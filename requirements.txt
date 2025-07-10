@@ -1,11 +1,10 @@
 streamlit
-streamlit-webrtc==0.45.1
+streamlit-mic-recorder
 google-generativeai
 python-dotenv
 Pillow
 PyPDF2
 gTTS
-charset-normalizer
 pyttsx3
 SpeechRecognition
 pyaudio
@@ -15,5 +14,4 @@ soundfile
 openpyxl
 pandas
 numpy
-av
 openai-whisper
