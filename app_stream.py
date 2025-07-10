@@ -802,7 +802,7 @@ else:
 # === Main QA Interface ===
 if st.session_state.get("generated_questions"):
     idx = st.session_state.get("current_question_index", 0)
-    if idx < len(st.session_state["generated_questions"]):
+    if idx < len(st.session_state["generated_questions"]) and st.session_state.get("record_phase") in ["audio_playing", "waiting_to_start", "recording"]:
         question = st.session_state["generated_questions"][idx].lstrip("1234567890. ").strip()
 
         # PHASE 0: Play audio for question
@@ -825,14 +825,17 @@ if st.session_state.get("generated_questions"):
         with open(st.session_state["question_audio_file"], "rb") as f:
             st.audio(f.read(), format="audio/mp3")
 
+        st.write("📌 Current Phase:", st.session_state["record_phase"])
+        st.write("📌 Current Index:", idx)
         now = time.time()
 
         # PHASE 1: Waiting for question audio to finish
         if st.session_state["record_phase"] == "audio_playing":
             if now - st.session_state["question_start_time"] < 5:
+                st.write("🎧 Still playing audio. Elapsed:", now - st.session_state["question_start_time"])
                 st.markdown("<h4 class='timer-text'>🔊 Playing question audio... Please listen</h4>", unsafe_allow_html=True)
                 time.sleep(1)
-                st.rerun()
+                st.experimental_rerun()
             else:
                 st.session_state.update({
                     "record_phase": "waiting_to_start",
