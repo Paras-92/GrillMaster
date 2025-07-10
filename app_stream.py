@@ -703,18 +703,39 @@ for domain in ["Analytics", "Finance", "Soft Skills"]:
         st.session_state["selected_domain"] = domain
         st.rerun()
 
-if not st.session_state["selected_domain"]:
+if not st.session_state.get("selected_domain"):
     st.sidebar.info("Please select a domain to continue.")
     st.stop()
 
 st.sidebar.markdown(f"**Selected Domain:** {st.session_state['selected_domain']}")
 num_qs = st.sidebar.slider("Number of Questions:", 1, 10, 3)
 
+# --- SOFT SKILLS MODE ---
 if st.session_state["selected_domain"] == "Soft Skills":
     if st.sidebar.button("Generate Questions"):
+        from random import sample
         st.session_state["generated_questions"] = sample(hr_questions, num_qs)
-        st.session_state["current_question_index"] = 0
+
+        # ✅ QA session initialization
+        st.session_state.update({
+            "current_question_index": 0,
+            "answers": [],
+            "evaluation_feedback": "",
+            "recorded_text": "",
+            "response_captured": False,
+            "timer_start": None,
+            "show_summary": False,
+            "question_played": False,
+            "recording_complete": False,
+            "record_phase": "audio_playing",  # ⬅️ Crucial for QA to start
+            "wait_timer_start": None,
+            "recording_timer_start": None,
+            "recording_detected": False,
+            "question_audio_file": ""
+        })
         st.rerun()
+
+# --- OTHER DOMAINS (Analytics / Finance) ---
 else:
     section_choice = st.sidebar.radio("Choose Input Type:", ("Resume", "Job Description", "Skills"))
     difficulty = st.sidebar.selectbox("Select Difficulty Level:", ["Beginner", "Intermediate", "Advanced"])
@@ -729,41 +750,32 @@ else:
         input_text = st.sidebar.text_area("Paste Job Description:")
 
     elif section_choice == "Skills":
-        input_text = ""
-
         if st.session_state["selected_domain"] == "Finance":
             finance_levels = ["Level-1", "Level-2", "Level-3"]
             selected_level = st.sidebar.selectbox("Select a Finance Level:", finance_levels, key="finance_level_select")
-
-            difficulty = st.session_state.get("difficulty", "Beginner")
 
             if selected_level != "Level-1":
                 st.sidebar.warning(f"🚧 {selected_level} content is still under development. Please select Level-1 to continue.")
                 st.stop()
 
-            # Map difficulty level to column in Excel
             column_map = {
                 "Beginner": "MODULE 1-EASY",
                 "Intermediate": "MODULE 1-MEDIUM",
                 "Advanced": "MODULE 1-DIFFICULT"
             }
-
             selected_column = column_map[difficulty]
-
-            # Load Excel and questions
             excel_path = os.path.join("data", "CIBOP Mock Questions.xlsx")
+
             try:
                 df = pd.read_excel(excel_path, engine="openpyxl")
                 questions_from_excel = df[selected_column].dropna().astype(str).tolist()
-                input_text = selected_column  # Optional, for tracking
+                input_text = selected_column
             except Exception as e:
                 st.sidebar.error(f"❌ Error reading Excel file: {e}")
                 st.stop()
 
             st.sidebar.success(f"✅ Loaded {difficulty}-level questions from {selected_level}")
-
         else:
-            # For Analytics or any other domain
             skills = {
                 "Analytics": ["Python", "SQL", "Machine Learning", "Statistics", "Business Analytics"]
             }
@@ -788,15 +800,23 @@ else:
             questions = [q.strip("* ") for q in lines if q.strip()]
             st.session_state["generated_questions"] = questions[:num_qs]
 
-        st.session_state["current_question_index"] = 0
-        st.session_state["answers"] = []
-        st.session_state["evaluation_feedback"] = ""
-        st.session_state["recorded_text"] = ""
-        st.session_state["response_captured"] = False
-        st.session_state["timer_start"] = None
-        st.session_state["show_summary"] = False
-        st.session_state["question_played"] = False
-        st.session_state["recording_complete"] = False
+        # ✅ QA session initialization
+        st.session_state.update({
+            "current_question_index": 0,
+            "answers": [],
+            "evaluation_feedback": "",
+            "recorded_text": "",
+            "response_captured": False,
+            "timer_start": None,
+            "show_summary": False,
+            "question_played": False,
+            "recording_complete": False,
+            "record_phase": "audio_playing",  # ⬅️ Crucial for QA to start
+            "wait_timer_start": None,
+            "recording_timer_start": None,
+            "recording_detected": False,
+            "question_audio_file": ""
+        })
         st.rerun()
 
 # === Main QA Interface ===
