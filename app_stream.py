@@ -895,9 +895,18 @@ if st.session_state.get("generated_questions"):
             st.info("🔴 Listening...")
 
             audio = mic_recorder(start_prompt=None, stop_prompt=None, just_once=True, key=f"mic_{idx}")
-            if audio and len(audio["bytes"]) > 0:
-                st.session_state["recording_detected"] = True
-                st.session_state["audio_data"] = audio["bytes"]
+
+            if audio is not None:
+                raw_bytes = audio.get("bytes")
+                if raw_bytes:
+                    st.session_state["recording_detected"] = True
+                    st.session_state["audio_data"] = raw_bytes
+                    st.audio(raw_bytes, format="audio/wav")
+                else:
+                    st.info("🎤 Mic activated, but no audio captured yet...")
+            else:
+                st.info("🎤 Waiting for microphone input...")
+
 
             if st.session_state["recording_detected"]:
                 if st.button("⏹️ Stop Recording", key=f"stop_{idx}"):
